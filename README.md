@@ -92,7 +92,7 @@ Because layers are sequential and each layer only needs one partner chunk, GPU m
 |-------------|------|----------|-------|
 | Working memory | O(B × d) | GPU | Current chunk pair activations |
 | Active KV | O(B × d) | GPU | One partner chunk, streamed per layer |
-| Full KV storage | O(N × d × L) | Disk | All chunks' KV states |
+| Full KV storage | O(N × log N) | Disk | All chunks' KV states |
 
 **GPU memory is O(B × d)—constant regardless of sequence length.**
 
@@ -116,9 +116,9 @@ Partner chunks only change every B tokens, so loads are infrequent and prefetcha
 | Butterfly (current) | O(N × log N) | — |
 | Butterfly (with eviction) | **O(B × d)** | O(N × log N) |
 
-**Example:** For 1M context:
-- Standard Transformer: ~6GB GPU
-- Butterfly (with eviction): ~1MB GPU + ~74GB disk
+**Example:** For 1M context, per global pass:
+- Standard Transformer: ~3GB GPU (1 full attention layer)
+- Butterfly (with eviction): ~1MB GPU + ~40GB disk (13 butterfly layers)
 
 ---
 
@@ -142,9 +142,9 @@ With proper eviction (not yet implemented), Butterfly would enable **logarithmic
 | RWKV | O(1) | Implicit | O(1) per token | Recurrent compression |
 | **Butterfly-LLM** | **O(1)*** | **Exact** | **O(log N) per token** | **None** |
 
-*With disk-backed KV storage; current implementation is O(N).
+*With disk-backed KV storage; current implementation is O(N log N).
 
-Butterfly aims to be the only architecture with **exact global attention, constant memory, and logarithmic streaming inference** simultaneously.
+Butterfly aims to be the only architecture with **exact global attention, constant GPU memory, and logarithmic streaming inference** simultaneously.
 
 ---
 
@@ -199,5 +199,6 @@ Butterfly aims to be the only architecture with **exact global attention, consta
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
 
