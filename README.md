@@ -26,11 +26,10 @@ This achieves **exact global expressivity** without ever performing full N×N at
 |----------|---------------------|---------------|
 | Training compute | O(N²) | O(N log N) |
 | Inference compute per token | O(N) | O(log N) |
-| KV memory (theoretical) | O(N · d · L) | O(B · d · L) (Constant)* |
+| GPU memory (with eviction) | O(N) | **O(B)** (Constant) |
+| Disk storage | — | O(N · log N) |
 | Attention window per layer | Global (N×N) | Constant (2B × 2B) |
 | Global connectivity | Single layer | O(log N) hops |
-
-*With sliding-window eviction. See [Memory Scaling](#memory-scaling) for current implementation status.
 
 ---
 
@@ -77,21 +76,49 @@ After log₂(N/B) layers, information from every chunk has reached every other c
 
 This is where the architecture's potential lies—and where the current implementation falls short.
 
-| Implementation | KV Cache Size | Status |
-|----------------|---------------|--------|
-| Standard Transformer | O(N × d × L) | — |
-| Butterfly (current) | O(N × d × L) | ⚠️ Caches all visited chunks |
-| Butterfly (with eviction) | O(B × d × L) | ❌ Not implemented |
+### Current Implementation
 
-**Current state:** The implementation caches all visited chunks for correctness during generation, resulting in the same O(N) memory scaling as standard transformers.
+| Memory Type | Size | Notes |
+|-------------|------|-------|
+| GPU memory | O(N × log N) | All visited chunks cached in VRAM |
 
-**Theoretical goal:** With a sliding-window eviction policy that discards chunks after they've propagated their information, memory can be bounded to O(B × d × L)—constant with respect to sequence length.
+**Asymptotically:** Butterfly storage grows O(N log N) vs O(N) for standard transformers.
 
-**Example projection (with eviction):** For 1M tokens with B=128, d=768:
-- Standard Transformer: ~6GB KV cache
-- Butterfly-LLM: ~35MB KV cache
+### With Streaming Eviction (Not Implemented)
 
-The ~200× memory reduction would enable million-token streaming inference on consumer GPUs. This requires implementing proper cache eviction, which is future work.
+Because layers are sequential and each layer only needs one partner chunk, GPU memory can be constant:
+
+| Memory Type | Size | Location | Notes |
+|-------------|------|----------|-------|
+| Working memory | O(B × d) | GPU | Current chunk pair activations |
+| Active KV | O(B × d) | GPU | One partner chunk, streamed per layer |
+| Full KV storage | O(N × d × L) | Disk | All chunks' KV states |
+
+**GPU memory is O(B × d)—constant regardless of sequence length.**
+
+The O(log N) factor appears in disk I/O, not GPU residency: each forward pass loads log N partner chunks sequentially.
+
+### I/O Feasibility
+
+For 1M tokens with B=128, d=768:
+- Per-layer load: ~400KB (one partner chunk)
+- Per forward pass: ~5MB (log N ≈ 13 layers)
+- NVMe throughput: 3-7 GB/s → **<1ms I/O**
+- Forward pass: 10-50ms → **I/O is not the bottleneck**
+
+Partner chunks only change every B tokens, so loads are infrequent and prefetchable.
+
+### Comparison
+
+| Implementation | GPU Memory | Disk Storage |
+|----------------|------------|--------------|
+| Standard Transformer | O(N) | — |
+| Butterfly (current) | O(N × log N) | — |
+| Butterfly (with eviction) | **O(B × d)** | O(N × log N) |
+
+**Example:** For 1M context:
+- Standard Transformer: ~6GB GPU
+- Butterfly (with eviction): ~1MB GPU + ~74GB disk
 
 ---
 
@@ -107,15 +134,15 @@ With proper eviction (not yet implemented), Butterfly would enable **logarithmic
 
 ## Comparison with Other Long-Context Architectures
 
-| Architecture | Memory | Global Expressivity | Streaming | Compression |
-|--------------|--------|---------------------|-----------|-------------|
+| Architecture | GPU Memory | Global Expressivity | Streaming | Compression |
+|--------------|------------|---------------------|-----------|-------------|
 | Standard Transformer | O(N) | Exact | O(N) per token | None |
 | Longformer | O(N) | Sparse approximation | O(N) per token | Sparse patterns |
 | Mamba | O(1) | Implicit/compressed | O(1) per token | State compression |
 | RWKV | O(1) | Implicit | O(1) per token | Recurrent compression |
 | **Butterfly-LLM** | **O(1)*** | **Exact** | **O(log N) per token** | **None** |
 
-*Theoretical with eviction; current implementation is O(N).
+*With disk-backed KV storage; current implementation is O(N).
 
 Butterfly aims to be the only architecture with **exact global attention, constant memory, and logarithmic streaming inference** simultaneously.
 
@@ -172,4 +199,5 @@ Butterfly aims to be the only architecture with **exact global attention, consta
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
