@@ -11,6 +11,7 @@ This yields:
 • **O(N log N)** training complexity  
 • **O(log N)** streaming inference per token  
 • **O(log N)** attention memory scaling  
+• **Full global connectivity** — every token can influence every other token through O(log N) hops  
 • **Exact global expressivity** — no lossy compression  
 • **Constant-size attention windows** per layer
 
@@ -28,7 +29,7 @@ This causes:
 |-----------|---------------------|---------------|
 | Attention compute | O(N²) | **O(N log N)** |
 | KV cache memory | O(N · d) | **O(B · d · log N)** |
-| Streaming inference | O(N) per token | **O(log N) per token** |
+| erence | O(N) per token | **O(log N) per token** |
 
 As context length grows, **memory becomes the bottleneck** — not compute — making million-token reasoning physically impractical on standard hardware.
 
@@ -118,6 +119,23 @@ This **43× memory reduction** enables million-token streaming inference on cons
 
 ---
 
+## Memory Scaling
+
+| Implementation | Cache Size | Notes |
+|----------------|-----------|-------|
+| Standard Transformer | O(N × d × L) | Full KV cache |
+| Butterfly (current) | O(N × d × L) | All visited chunks cached |
+| Butterfly (with eviction) | O(B × d × L) | **Constant** — only active chunks |
+
+The current implementation caches all visited chunks for correctness during 
+generation. With a sliding-window eviction policy, memory can be bounded to 
+~35MB regardless of sequence length.
+
+**Note:** The architecture requires O(log N) *layers* for global connectivity, 
+but per-layer memory is constant when properly bounded.
+
+---
+
 ## Streaming Inference
 
 Butterfly performs **logarithmic-time streaming generation**.
@@ -155,5 +173,44 @@ Butterfly is the only known architecture with **exact global attention, sub-line
 
 ---
 
+## Limitations & Open Questions
 
+- Multi-hop reasoning may have degraded signal compared to direct attention
+- Not yet benchmarked against established long-context models
+- RoPE positions in current implementation are chunk-local, not globally indexed (potential bug)
+- Triton kernel is a simplified sketch, not production-ready. The same is true for the whole repository
+
+---
+
+---
+
+## Reference Model Specifications
+
+| Parameter | Micro (Testing) | Full (Research) |
+|-----------|-----------------|-----------------|
+| Max context | 4,096 tokens | 65,536 tokens |
+| Chunk size | 64 | 128 |
+| Hidden dim | 256 | 768 |
+| Attention heads | 4 | 12 |
+| Local encoder layers | 2 | 4 |
+| Butterfly layers | 6 per pass | 9 per pass |
+| Butterfly passes | 2 | 5 |
+| Refinement layers | 2 | 4 |
+| Total depth | ~18 | ~53 |
+| Vocab | 256 (byte-level) | 256 (byte-level) |
+| Target hardware | Consumer GPU | A100 (training) / RTX (inference) |
+
+**Theoretical max context:** With 9 butterfly layers per pass, the architecture supports up to 2⁹ × 128 = 65,536 tokens per pass. Extending to 1M+ tokens requires increasing `butterfly_layers` to ~13.
+
+---
+
+## Code Status
+
+- ⚠️ Core architecture implemented
+- ⚠️ Flash Attention integration
+- ⚠️ Streaming inference cache
+- ⚠️ Triton kernel is a sketch (not fused)
+- ⚠️ RoPE uses local positions (needs global indexing fix)
+- ❌ No pretrained weights
+- ❌ No benchmark results yet
 
