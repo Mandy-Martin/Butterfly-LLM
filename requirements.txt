@@ -1,0 +1,6 @@
+
+torch>=2.1
+flash-attn>=2.3.0
+triton>=2.1.0
+pyyaml
+tqdm

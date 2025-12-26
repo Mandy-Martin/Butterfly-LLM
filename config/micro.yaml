@@ -1,0 +1,16 @@
+max_tokens: 4096
+chunk_size: 64
+butterfly_arity: 2
+
+hidden_size: 256
+num_heads: 4
+ffn_mult: 4
+
+local_layers: 2
+butterfly_passes: 2
+butterfly_layers: 6
+refine_layers: 2
+
+vocab_size: 256
+dropout: 0.1
+label_smoothing: 0.05

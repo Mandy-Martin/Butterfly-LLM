@@ -1,0 +1,22 @@
+# Max context
+max_tokens: 65536
+chunk_size: 128
+butterfly_arity: 2
+
+# Model size
+hidden_size: 768
+num_heads: 12
+ffn_mult: 4
+
+# Depth
+local_layers: 4
+butterfly_passes: 5      # 5 passes
+butterfly_layers: 9     # log2(65536/128) = 9
+refine_layers: 4
+
+# Tokenization
+vocab_size: 256
+
+# Training
+dropout: 0.1
+label_smoothing: 0.05
