@@ -2,6 +2,8 @@
 
 Butterfly-LLM is a new class of long-context language model architecture that makes **million-token reasoning practical on consumer GPUs**.
 
+This repo contains code to test and explore it. It is a work in progress. Feel free to do the same. All claims are not proven, but hey, you have to start with a thesis.
+
 Instead of compressing memory, approximating attention, or sacrificing global expressivity, Butterfly factorizes **dense global self-attention across depth rather than width**, using a structured butterfly (hypercube) routing network.
 
 This yields:
@@ -152,5 +154,6 @@ Butterfly is the only known architecture with **exact global attention, sub-line
 - **Research-grade global attention** at previously impossible scales
 
 ---
+
 
 
