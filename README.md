@@ -10,13 +10,15 @@ This repo contains experimental code to test and explore the architecture. All c
 
 Dense attention doesn't need to happen in one layer.
 
-Instead of compressing memory, approximating attention, or sacrificing global connectivity, Butterfly factorizes **dense global self-attention across depth rather than width** using structured butterfly (hypercube) routing.
+Instead of compressing memory, approximating attention, or sacrificing global connectivity, Butterfly spreads **global information flow across depth rather than width** using structured butterfly (hypercube) routing.
 
 1. At each layer, tokens attend within fixed-size chunk pairs (2B tokens total)
 2. Chunk pairings follow butterfly routing, changing each layer to span increasing distances
 3. After O(log N) layers, every token has influenced every other token
 
-This achieves **exact global connectivity** without ever performing full N×N attention—analogous to how FFT computes dense transforms using logarithmic-depth structured mixing.
+This achieves **full global connectivity** without ever performing full N×N attention—analogous to how FFT computes dense transforms using logarithmic-depth structured mixing.
+
+**Important distinction:** This is not mathematically equivalent to dense attention—it's a different computation that achieves the same connectivity graph. Information flows through intermediate representations rather than direct pairwise attention. Whether this matters in practice is an empirical question.
 
 ---
 
@@ -29,7 +31,7 @@ This achieves **exact global connectivity** without ever performing full N×N at
 | GPU memory (with eviction) | O(N) | **O(B)** (Constant) |
 | Disk storage | — | O(N · log N) |
 | Attention window per layer | Global (N×N) | Constant (2B × 2B) |
-| Global connectivity | Single layer | O(log N) hops |
+| Global connectivity | Single layer (direct) | O(log N) hops (indirect) |
 
 ---
 
@@ -140,15 +142,15 @@ With proper eviction (not yet implemented), Butterfly would enable **logarithmic
 
 | Architecture | GPU Memory | Global Connectivity | Streaming | Compression |
 |--------------|------------|---------------------|-----------|-------------|
-| Standard Transformer | O(N) | Exact | O(N) per token | None |
+| Standard Transformer | O(N) | Direct (single layer) | O(N) per token | None |
 | Longformer | O(N) | Sparse approximation | O(N) per token | Sparse patterns |
 | Mamba | O(1) | Implicit/compressed | O(1) per token | State compression |
 | RWKV | O(1) | Implicit | O(1) per token | Recurrent compression |
-| **Butterfly-LLM** | **O(1)*** | **Exact** | **O(log N) per token** | **None** |
+| **Butterfly-LLM** | **O(1)*** | **Full (multi-hop)** | **O(log N) per token** | **None** |
 
 *With disk-backed KV storage; current implementation is O(N log N).
 
-Butterfly aims to be the only architecture with **exact global connectivity, constant GPU memory, and logarithmic streaming inference** simultaneously.
+Butterfly aims to combine **full global connectivity, constant GPU memory, and logarithmic streaming inference**—but connectivity is achieved via multi-hop paths, not direct attention.
 
 ---
 
@@ -203,6 +205,7 @@ Butterfly aims to be the only architecture with **exact global connectivity, con
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
 
 
