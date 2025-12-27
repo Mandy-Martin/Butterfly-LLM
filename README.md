@@ -186,7 +186,7 @@ Butterfly aims to combine **full global connectivity, constant GPU memory, and l
 | Butterfly passes | 2 | 5 |
 | Refinement layers | 2 | 4 |
 | Total depth | ~16 | ~53 |
-| Vocab | 256 (byte-level) | 256 (byte-level) |
+| Vocab | 256 (byte-level) (tokens = letters) | 256 (byte-level) (tokens = letters) |
 | Target hardware | Consumer GPU | A100 (training) / RTX (inference) |
 
 **Theoretical max context:** With 9 butterfly layers per pass, the architecture supports up to 2⁹ × 128 = 65,536 tokens per pass. Extending to 1M+ tokens requires ~13 butterfly layers.
@@ -205,6 +205,7 @@ Butterfly aims to combine **full global connectivity, constant GPU memory, and l
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
 
 
