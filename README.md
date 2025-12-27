@@ -10,13 +10,13 @@ This repo contains experimental code to test and explore the architecture. All c
 
 Dense attention doesn't need to happen in one layer.
 
-Instead of compressing memory, approximating attention, or sacrificing global expressivity, Butterfly factorizes **dense global self-attention across depth rather than width** using structured butterfly (hypercube) routing.
+Instead of compressing memory, approximating attention, or sacrificing global connectivity, Butterfly factorizes **dense global self-attention across depth rather than width** using structured butterfly (hypercube) routing.
 
-1. Tokens mix within fixed-size chunks locally
-2. Global information propagates across layers via structured butterfly routing
-3. After O(log N) layers, every token can influence every other token
+1. At each layer, tokens attend within fixed-size chunk pairs (2B tokens total)
+2. Chunk pairings follow butterfly routing, changing each layer to span increasing distances
+3. After O(log N) layers, every token has influenced every other token
 
-This achieves **exact global expressivity** without ever performing full N×N attention—analogous to how FFT computes dense transforms using logarithmic-depth structured mixing.
+This achieves **exact global connectivity** without ever performing full N×N attention—analogous to how FFT computes dense transforms using logarithmic-depth structured mixing.
 
 ---
 
@@ -50,9 +50,11 @@ No token pooling or compression—all tokens are preserved.
 
 ### 2. Structured Cross-Chunk Attention
 
-At each layer, every chunk performs dense self-attention over:
-- Its own tokens (local attention)
-- One partner chunk selected by the butterfly routing pattern
+At each layer, every token performs dense self-attention over:
+- All tokens in its own chunk (local attention)
+- All tokens in one partner chunk (selected by butterfly routing)
+
+Chunks are purely organizational—they have no state or aggregated representation.
 
 This preserves exact token-level interactions while keeping attention windows constant.
 
@@ -86,17 +88,17 @@ This is where the architecture's potential lies—and where the current implemen
 
 ### With Streaming Eviction (Not Implemented)
 
-Because layers are sequential and each layer only needs one partner chunk, GPU memory can be constant:
+Because each layer only needs one chunk pair for attention, GPU memory can be constant:
 
 | Memory Type | Size | Location | Notes |
 |-------------|------|----------|-------|
-| Working memory | O(B × d) | GPU | Current chunk pair activations |
-| Active KV | O(B × d) | GPU | One partner chunk, streamed per layer |
-| Full KV storage | O(N × log N) | Disk | All chunks' KV states |
+| Current chunk | O(B × d) | GPU | The incomplete chunk being generated |
+| Partner chunk KV | O(B × d) | GPU | Cached KV for one partner, swapped per layer |
+| Full KV storage | O(N × log N) | Disk | All tokens' KV states at all layers |
 
 **GPU memory is O(B × d)—constant regardless of sequence length.**
 
-The O(log N) factor appears in disk I/O, not GPU residency: each forward pass loads log N partner chunks sequentially.
+The O(log N) factor appears in disk I/O, not GPU residency: each token generation loads O(log N) partner chunks sequentially, one per layer.
 
 ### I/O Feasibility
 
@@ -126,7 +128,7 @@ Partner chunks only change every B tokens, so loads are infrequent and prefetcha
 
 With proper eviction (not yet implemented), Butterfly would enable **logarithmic-time streaming generation**:
 
-1. Only O(log N) chunk interactions recomputed per token
+1. Only O(log N) chunk-pair attention operations per token (each over 2B tokens)
 2. No global KV cache recomputation needed
 3. Constant memory per forward pass
 
@@ -134,7 +136,7 @@ With proper eviction (not yet implemented), Butterfly would enable **logarithmic
 
 ## Comparison with Other Long-Context Architectures
 
-| Architecture | GPU Memory | Global Expressivity | Streaming | Compression |
+| Architecture | GPU Memory | Global Connectivity | Streaming | Compression |
 |--------------|------------|---------------------|-----------|-------------|
 | Standard Transformer | O(N) | Exact | O(N) per token | None |
 | Longformer | O(N) | Sparse approximation | O(N) per token | Sparse patterns |
@@ -144,7 +146,7 @@ With proper eviction (not yet implemented), Butterfly would enable **logarithmic
 
 *With disk-backed KV storage; current implementation is O(N log N).
 
-Butterfly aims to be the only architecture with **exact global attention, constant GPU memory, and logarithmic streaming inference** simultaneously.
+Butterfly aims to be the only architecture with **exact global connectivity, constant GPU memory, and logarithmic streaming inference** simultaneously.
 
 ---
 
@@ -159,7 +161,7 @@ Butterfly aims to be the only architecture with **exact global attention, consta
 
 ## Limitations & Open Questions
 
-- Multi-hop reasoning may degrade signal compared to direct attention
+- Multi-hop information propagation  may degrade signal compared to direct attention
 - Not yet benchmarked against established long-context models
 - RoPE positions are chunk-local, not globally indexed (potential bug)
 - Memory benefits require eviction policy (not implemented)
@@ -179,7 +181,7 @@ Butterfly aims to be the only architecture with **exact global attention, consta
 | Butterfly layers | 6 per pass | 9 per pass |
 | Butterfly passes | 2 | 5 |
 | Refinement layers | 2 | 4 |
-| Total depth | ~18 | ~53 |
+| Total depth | ~16 | ~53 |
 | Vocab | 256 (byte-level) | 256 (byte-level) |
 | Target hardware | Consumer GPU | A100 (training) / RTX (inference) |
 
@@ -191,14 +193,15 @@ Butterfly aims to be the only architecture with **exact global attention, consta
 
 | Component | Status |
 |-----------|--------|
-| Core architecture | ⚠️ Implemented |
-| Flash Attention integration | ⚠️ Implemented |
+| Core architecture | ⚠️ Implemented, bugs |
+| Flash Attention integration | ⚠️ Implemented, bugs |
 | Streaming inference cache | ⚠️ Basic (no eviction) |
 | Triton kernel | ⚠️ Sketch only |
 | RoPE positioning | ⚠️ Local (needs global fix) |
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
 
 
