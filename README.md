@@ -72,6 +72,8 @@ Layer 2: Chunks differ in bit 2 → (0↔4), (1↔5), (2↔6), (3↔7)
 
 After log₂(N/B) layers, information from every chunk has reached every other chunk. Multiple passes provide multi-step reasoning depth.
 
+**Empty chunks:** When partner chunks don't exist—during streaming inference (future chunks) or training on shorter sequences—attention for those pairs is simply skipped. The routing pattern guarantees that non-existent partners are never on the information path between existing chunks, preserving correct connectivity with no wasted compute.
+  
 ---
 
 ## Memory Scaling
@@ -193,14 +195,15 @@ Butterfly aims to be the only architecture with **exact global connectivity, con
 
 | Component | Status |
 |-----------|--------|
-| Core architecture | ⚠️ Implemented, bugs |
-| Flash Attention integration | ⚠️ Implemented, bugs |
+| Core architecture | ⚠️ Incomplete |
+| Flash Attention integration | ⚠️ Incomplete |
 | Streaming inference cache | ⚠️ Basic (no eviction) |
 | Triton kernel | ⚠️ Sketch only |
 | RoPE positioning | ⚠️ Local (needs global fix) |
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
 
 
