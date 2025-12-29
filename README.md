@@ -74,7 +74,7 @@ Layer 2: Chunks differ in bit 2 → (0↔4), (1↔5), (2↔6), (3↔7)
 
 After log₂(N/B) layers, information from every chunk has reached every other chunk. Multiple passes provide multi-step reasoning depth.
 
-**Empty chunks:** When partner chunks don't exist—during streaming inference (future chunks) or training on shorter sequences—attention for those pairs is simply skipped. The routing pattern guarantees that non-existent partners are never on the information path between existing chunks, preserving correct connectivity with no wasted compute.
+**Empty chunks:** When partner chunks don't exist—during streaming inference (future chunks) or training on shorter sequences—attention for those pairs is simply skipped.
   
 ---
 
@@ -205,6 +205,7 @@ Butterfly aims to combine **full global connectivity, constant GPU memory, and l
 | Cache eviction policy | ❌ Not implemented |
 | Pretrained weights | ❌ None |
 | Benchmarks | ❌ None |
+
 
 
 
